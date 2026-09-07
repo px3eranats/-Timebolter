@@ -34,9 +34,10 @@
   header{
     display:flex;
     align-items:center;
-    justify-content:space-between;
+    justify-content:center;
+    text-align:center;
     gap:16px;
-    margin-bottom:28px;
+    margin-bottom:8px;
     flex-wrap:wrap;
   }
   h1{
@@ -65,6 +66,21 @@
     transition:background .15s ease, color .15s ease;
   }
   .addbtn:hover{background:var(--gold);color:#221a08;}
+  .hero{text-align:center;margin:8px 0 36px;}
+  .addbtn-hero{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;
+    font-size:28px;
+    background:transparent;
+    color:var(--gold);
+    border:3px solid var(--gold-dim);
+    padding:32px 68px;
+    cursor:pointer;
+    clip-path:polygon(24px 0,100% 0,100% calc(100% - 24px),calc(100% - 24px) 100%,0 100%,0 24px);
+    transition:background .15s ease, color .15s ease, transform .1s ease;
+  }
+  .addbtn-hero:hover{background:var(--gold);color:#221a08;}
+  .addbtn-hero:active{transform:scale(0.98);}
 
   .empty{
     border:1px dashed var(--border);
@@ -213,8 +229,11 @@
       <h1>Timebolter</h1>
       <p class="tagline">จับเวลาไอเทมและจุดสำคัญในเกม พร้อมรูปประกอบ</p>
     </div>
-    <button class="addbtn" id="openAdd">+ เพิ่มตัวจับเวลา</button>
   </header>
+
+  <div class="hero">
+    <button class="addbtn-hero" id="openAdd">+ เพิ่มตัวจับเวลา</button>
+  </div>
 
   <div id="emptyState" class="empty" style="display:none;">
     <b>ยังไม่มีตัวจับเวลา</b>
@@ -306,6 +325,7 @@ function saveTimers(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(timers));
   }catch(e){
     console.error('save failed', e);
+    alert('บันทึกไม่สำเร็จ อาจเป็นเพราะรูปภาพเยอะเกินพื้นที่จัดเก็บของเบราว์เซอร์ ลองลบตัวจับเวลาเก่าบางอันแล้วลองใหม่');
   }
 }
 
@@ -331,14 +351,14 @@ function resizeImage(file){
     reader.onload = (e)=>{
       const img = new Image();
       img.onload = ()=>{
-        const maxW = 300;
+        const maxW = 2000;
         const scale = Math.min(1, maxW / img.width);
         const canvas = document.createElement('canvas');
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
       };
       img.src = e.target.result;
     };
