@@ -724,7 +724,12 @@ function render(){
     clockEl.textContent = isDone ? '00:00' : fmt(remaining);
     const totalEl = document.createElement('div');
     totalEl.className = 'totaltxt';
-    totalEl.textContent = 'ตั้งไว้ ' + fmt(t.totalSec);
+    if(isDone){
+      const secsLeft = Math.max(0, 60 - Math.floor((Date.now() - t.endTime)/1000));
+      totalEl.textContent = 'ลบอัตโนมัติใน ' + secsLeft + ' วิ';
+    } else {
+      totalEl.textContent = 'ตั้งไว้ ' + fmt(t.totalSec);
+    }
     clockWrap.appendChild(clockEl);
     clockWrap.appendChild(totalEl);
     row.appendChild(clockWrap);
@@ -760,7 +765,13 @@ function render(){
   });
 }
 
-setInterval(render, 1000);
+function autoCleanup(){
+  const now = Date.now();
+  const toRemove = timers.filter(t => (now - t.endTime) >= 60000).map(t => t.id);
+  toRemove.forEach(id => persistRemove(id));
+}
+
+setInterval(()=>{ autoCleanup(); render(); }, 1000);
 initSync();
 </script>
 </body>
