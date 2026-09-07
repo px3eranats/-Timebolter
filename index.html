@@ -260,10 +260,21 @@
   </div>
 </div>
 
+<div class="overlay" id="lightbox">
+  <img id="lightboxImg" alt="รูปเต็ม" style="max-width:90vw;max-height:85vh;object-fit:contain;">
+</div>
+
 <script>
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('emptyState');
 const overlay = document.getElementById('overlay');
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightboxImg');
+function openLightbox(src){
+  lightboxImg.src = src;
+  lightbox.classList.add('show');
+}
+lightbox.addEventListener('click', ()=>{ lightbox.classList.remove('show'); });
 const openAdd = document.getElementById('openAdd');
 const cancelBtn = document.getElementById('cancelBtn');
 const saveBtn = document.getElementById('saveBtn');
@@ -448,6 +459,8 @@ function render(){
     thumb.className = 'thumb';
     if(t.image){
       thumb.style.backgroundImage = "url('" + t.image + "')";
+      thumb.style.cursor = 'zoom-in';
+      thumb.addEventListener('click', ()=> openLightbox(t.image));
     } else {
       thumb.textContent = 'ไม่มีรูป';
     }
