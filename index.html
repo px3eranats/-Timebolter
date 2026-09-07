@@ -164,6 +164,8 @@
   }
   .actions button:hover{border-color:var(--gold-dim);color:var(--gold);}
   .actions button.del:hover{border-color:var(--red);color:var(--red);}
+  .actions button.retimer{border-color:var(--gold-dim);color:var(--gold);font-weight:600;}
+  .actions button.retimer:hover{background:var(--gold);color:#221a08;}
 
   .status{position:absolute;top:10px;right:12px;font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--red);}
 
@@ -245,7 +247,7 @@
 
 <div class="overlay" id="overlay">
   <div class="modal">
-    <h2>เพิ่มตัวจับเวลาใหม่</h2>
+    <h2 id="modalTitle">เพิ่มตัวจับเวลาใหม่</h2>
     <div class="field">
       <label>ชื่อจุด / รายการ</label>
       <input type="text" id="nameInput" placeholder="เช่น จุดฟาร์มบอส">
@@ -297,6 +299,8 @@ lightbox.addEventListener('click', ()=>{ lightbox.classList.remove('show'); });
 const openAdd = document.getElementById('openAdd');
 const cancelBtn = document.getElementById('cancelBtn');
 const saveBtn = document.getElementById('saveBtn');
+const modalTitle = document.getElementById('modalTitle');
+let editingId = null;
 const nameInput = document.getElementById('nameInput');
 const minInput = document.getElementById('minInput');
 const secInput = document.getElementById('secInput');
@@ -398,23 +402,48 @@ document.addEventListener('paste', (e)=>{
   }
 });
 
-function openModal(){
-  nameInput.value = '';
-  minInput.value = 5;
-  secInput.value = 0;
-  pendingImage = null;
-  previewWrap.style.display = 'none';
-  fileRow.textContent = 'เลือกรูปภาพ หรือวาง (Ctrl+V)';
-  fileRow.classList.remove('haspic');
-  fileRow.appendChild(imgInput);
-  imgInput.value = '';
+function openModal(timer){
+  if(timer){
+    editingId = timer.id;
+    modalTitle.textContent = 'ตั้งเวลาใหม่';
+    saveBtn.textContent = 'ตั้งเวลาใหม่';
+    nameInput.value = timer.name || '';
+    minInput.value = Math.floor(timer.totalSec/60);
+    secInput.value = timer.totalSec%60;
+    pendingImage = timer.image || null;
+    if(timer.image){
+      previewImg.src = timer.image;
+      previewWrap.style.display = 'flex';
+      fileRow.textContent = 'รูปเดิม (เลือกใหม่เพื่อเปลี่ยน)';
+      fileRow.classList.add('haspic');
+    } else {
+      previewWrap.style.display = 'none';
+      fileRow.textContent = 'เลือกรูปภาพ หรือวาง (Ctrl+V)';
+      fileRow.classList.remove('haspic');
+    }
+    fileRow.appendChild(imgInput);
+    imgInput.value = '';
+  } else {
+    editingId = null;
+    modalTitle.textContent = 'เพิ่มตัวจับเวลาใหม่';
+    saveBtn.textContent = 'เริ่มจับเวลา';
+    nameInput.value = '';
+    minInput.value = 5;
+    secInput.value = 0;
+    pendingImage = null;
+    previewWrap.style.display = 'none';
+    fileRow.textContent = 'เลือกรูปภาพ หรือวาง (Ctrl+V)';
+    fileRow.classList.remove('haspic');
+    fileRow.appendChild(imgInput);
+    imgInput.value = '';
+  }
   errMsg.style.display = 'none';
   overlay.classList.add('show');
   nameInput.focus();
 }
-function closeModal(){ overlay.classList.remove('show'); }
+function closeModal(){ overlay.classList.remove('show'); editingId = null; }
 
-openAdd.addEventListener('click', openModal);
+openAdd.addEventListener('click', ()=> openModal());
 cancelBtn.addEventListener('click', closeModal);
 overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
 
@@ -438,15 +467,24 @@ saveBtn.addEventListener('click', async ()=>{
   }
   errMsg.style.display = 'none';
   const now = Date.now();
-  const timerObj = {
-    id: 't' + now + Math.random().toString(36).slice(2,7),
-    name,
-    totalSec,
-    endTime: now + totalSec*1000,
-    image: pendingImage,
-    createdAt: now
-  };
-  persistAdd(timerObj);
+  if(editingId){
+    persistUpdate(editingId, {
+      name,
+      totalSec,
+      endTime: now + totalSec*1000,
+      image: pendingImage
+    });
+  } else {
+    const timerObj = {
+      id: 't' + now + Math.random().toString(36).slice(2,7),
+      name,
+      totalSec,
+      endTime: now + totalSec*1000,
+      image: pendingImage,
+      createdAt: now
+    };
+    persistAdd(timerObj);
+  }
   closeModal();
 });
 
@@ -529,10 +567,18 @@ function render(){
     const actions = document.createElement('div');
     actions.className = 'actions';
     const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'รีเซ็ต';
-    resetBtn.addEventListener('click', ()=>{
-      persistUpdate(t.id, { endTime: Date.now() + t.totalSec*1000 });
-    });
+    if(isDone){
+      resetBtn.textContent = 'ตั้งเวลาใหม่';
+      resetBtn.className = 'retimer';
+      resetBtn.addEventListener('click', ()=>{
+        openModal(t);
+      });
+    } else {
+      resetBtn.textContent = 'รีเซ็ต';
+      resetBtn.addEventListener('click', ()=>{
+        persistUpdate(t.id, { endTime: Date.now() + t.totalSec*1000 });
+      });
+    }
     const delBtn = document.createElement('button');
     delBtn.className = 'del';
     delBtn.textContent = 'ลบ';
