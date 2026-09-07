@@ -293,19 +293,17 @@
   <div class="modal" style="max-width:420px;">
     <h2>สร้างห้อง / เข้าห้อง</h2>
     <p style="font-size:13px;color:var(--muted);line-height:1.6;margin:0 0 14px;">
-      ตั้งชื่อห้องแล้วใส่ชื่อเดียวกันในทุกอุปกรณ์ของคุณ (เช่น คอมกับไอแพด) จะเห็นตัวจับเวลาชุดเดียวกันแบบเรียลไทม์ ต้องสร้าง Firebase Realtime Database ฟรีที่
-      <a href="https://console.firebase.google.com" target="_blank" style="color:var(--gold);">console.firebase.google.com</a>
-      แล้ววาง config ด้านล่างก่อน (ทำครั้งเดียว ใช้ config ชุดเดียวกันได้ทุกอุปกรณ์)
+      ตั้งชื่อห้องและรหัสผ่าน แล้วใส่ให้ตรงกันในทุกอุปกรณ์ของคุณ (เช่น คอมกับไอแพด) จะเห็นตัวจับเวลาชุดเดียวกันแบบเรียลไทม์ทันที
     </p>
-    <div class="field">
-      <label>Firebase config (วางทั้งก้อนจาก Firebase console)</label>
-      <textarea id="firebaseConfigInput" placeholder='{"apiKey":"...","databaseURL":"https://...","projectId":"..."}' style="width:100%;min-height:80px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 10px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
-    </div>
     <div class="field">
       <label>ชื่อห้อง (ตั้งเองอะไรก็ได้ ใส่ให้ตรงกันทุกอุปกรณ์ของคุณ)</label>
       <input type="text" id="syncCodeInput" placeholder="เช่น preesh-room-2026">
     </div>
-    <div class="err" id="syncErr">วาง Firebase config ให้เป็น JSON ที่ถูกต้อง และตั้งชื่อห้องด้วย</div>
+    <div class="field">
+      <label>รหัสผ่านห้อง (กันคนอื่นเดาชื่อห้องแล้วเข้ามาได้)</label>
+      <input type="password" id="syncPassInput" placeholder="ตั้งรหัสผ่านของคุณ">
+    </div>
+    <div class="err" id="syncErr">ตั้งทั้งชื่อห้องและรหัสผ่านก่อนนะ</div>
     <div class="modalbtns">
       <button class="cancel" id="disconnectSyncBtn">ออกจากห้อง</button>
       <button class="primary" id="syncSaveBtn">เข้าห้อง</button>
@@ -337,14 +335,13 @@ const openSettings = document.getElementById('openSettings');
 const settingsCancelBtn = document.getElementById('settingsCancelBtn');
 const syncSaveBtn = document.getElementById('syncSaveBtn');
 const disconnectSyncBtn = document.getElementById('disconnectSyncBtn');
-const firebaseConfigInput = document.getElementById('firebaseConfigInput');
 const syncCodeInput = document.getElementById('syncCodeInput');
+const syncPassInput = document.getElementById('syncPassInput');
 const syncErr = document.getElementById('syncErr');
 
 openSettings.addEventListener('click', ()=>{
-  const cfg = getFirebaseConfig();
-  firebaseConfigInput.value = cfg ? JSON.stringify(cfg) : '';
   syncCodeInput.value = getSyncCode();
+  syncPassInput.value = getRoomPassword();
   syncErr.style.display = 'none';
   settingsOverlay.classList.add('show');
 });
@@ -352,28 +349,26 @@ settingsCancelBtn.addEventListener('click', ()=>{ settingsOverlay.classList.remo
 settingsOverlay.addEventListener('click', (e)=>{ if(e.target === settingsOverlay) settingsOverlay.classList.remove('show'); });
 
 syncSaveBtn.addEventListener('click', ()=>{
-  const configRaw = firebaseConfigInput.value.trim();
   const code = syncCodeInput.value.trim();
-  try{
-    const parsed = JSON.parse(configRaw);
-    if(!parsed.databaseURL || !code) throw new Error('missing fields');
-    localStorage.setItem(FIREBASE_CONFIG_STORAGE, JSON.stringify(parsed));
-    localStorage.setItem(SYNC_CODE_STORAGE, code);
-    initSync();
-    syncErr.style.display = 'none';
-    settingsOverlay.classList.remove('show');
-  }catch(e){
+  const pass = syncPassInput.value;
+  if(!code || !pass){
     syncErr.style.display = 'block';
+    return;
   }
+  localStorage.setItem(SYNC_CODE_STORAGE, code);
+  localStorage.setItem(ROOM_PASSWORD_STORAGE, pass);
+  initSync();
+  syncErr.style.display = 'none';
+  settingsOverlay.classList.remove('show');
 });
 
 disconnectSyncBtn.addEventListener('click', ()=>{
-  localStorage.removeItem(FIREBASE_CONFIG_STORAGE);
   localStorage.removeItem(SYNC_CODE_STORAGE);
+  localStorage.removeItem(ROOM_PASSWORD_STORAGE);
   if(dbRef){ dbRef.off(); dbRef = null; }
   syncMode = false;
-  firebaseConfigInput.value = '';
   syncCodeInput.value = '';
+  syncPassInput.value = '';
   loadTimers();
   updateSyncBadge();
   settingsOverlay.classList.remove('show');
@@ -391,8 +386,18 @@ const previewImg = document.getElementById('previewImg');
 let timers = [];
 let pendingImage = null;
 const STORAGE_KEY = 'game-timers-v1';
-const FIREBASE_CONFIG_STORAGE = 'firebase_config';
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAzoS749YJMrbhYqIn3Ne7tHFUKa--HqJw",
+  authDomain: "bolter-f3ebf.firebaseapp.com",
+  databaseURL: "https://bolter-f3ebf-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bolter-f3ebf",
+  storageBucket: "bolter-f3ebf.firebasestorage.app",
+  messagingSenderId: "749029494834",
+  appId: "1:749029494834:web:6eb1dab673fbc83ddeac2b",
+  measurementId: "G-TS5N6VX9TM"
+};
 const SYNC_CODE_STORAGE = 'sync_code';
+const ROOM_PASSWORD_STORAGE = 'room_password';
 
 let firebaseApp = null;
 let dbRef = null;
@@ -445,14 +450,20 @@ function persistRemove(id){
   }
 }
 
-function getFirebaseConfig(){
-  try{
-    const raw = localStorage.getItem(FIREBASE_CONFIG_STORAGE);
-    return raw ? JSON.parse(raw) : null;
-  }catch(e){ return null; }
-}
 function getSyncCode(){
   try{ return localStorage.getItem(SYNC_CODE_STORAGE) || ''; }catch(e){ return ''; }
+}
+function getRoomPassword(){
+  try{ return localStorage.getItem(ROOM_PASSWORD_STORAGE) || ''; }catch(e){ return ''; }
+}
+function hashRoomKey(name, pass){
+  const str = name + '::' + pass;
+  let h = 5381;
+  for(let i = 0; i < str.length; i++){
+    h = ((h << 5) + h) + str.charCodeAt(i);
+    h = h & h;
+  }
+  return 'r' + Math.abs(h).toString(36);
 }
 
 function updateSyncBadge(){
@@ -468,9 +479,9 @@ function updateSyncBadge(){
 }
 
 function initSync(){
-  const config = getFirebaseConfig();
   const code = getSyncCode();
-  if(!config || !code){
+  const pass = getRoomPassword();
+  if(!code || !pass){
     syncMode = false;
     loadTimers();
     updateSyncBadge();
@@ -478,10 +489,11 @@ function initSync(){
   }
   try{
     if(!firebaseApp){
-      firebaseApp = firebase.initializeApp(config);
+      firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
     }
     if(dbRef){ dbRef.off(); }
-    dbRef = firebase.database().ref('sync/' + code + '/timers');
+    const roomKey = hashRoomKey(code, pass);
+    dbRef = firebase.database().ref('sync/' + roomKey + '/timers');
     syncMode = true;
     dbRef.on('value', (snapshot)=>{
       const val = snapshot.val();
@@ -489,12 +501,12 @@ function initSync(){
       render();
     }, (err)=>{
       console.error(err);
-      alert('การเชื่อมต่อห้องขาดหาย ตรวจสอบ Firebase config และชื่อห้อง');
+      alert('การเชื่อมต่อห้องขาดหาย ตรวจสอบชื่อห้องและรหัสผ่าน');
     });
     updateSyncBadge();
   }catch(e){
     console.error(e);
-    alert('เข้าห้องไม่สำเร็จ ตรวจสอบ Firebase config');
+    alert('เข้าห้องไม่สำเร็จ ลองใหม่อีกครั้ง');
     syncMode = false;
     loadTimers();
   }
@@ -656,7 +668,10 @@ function render(){
   const R = 24;
   const CIRC = 2*Math.PI*R;
 
-  timers.forEach(t=>{
+  const now = Date.now();
+  const sorted = [...timers].sort((a, b) => (a.endTime - now) - (b.endTime - now));
+
+  sorted.forEach(t=>{
     const remaining = (t.endTime - Date.now())/1000;
     const isDone = remaining <= 0;
     const frac = isDone ? 0 : Math.max(0, Math.min(1, remaining / t.totalSec));
