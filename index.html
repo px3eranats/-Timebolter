@@ -235,6 +235,10 @@
 
   <div class="hero">
     <button class="addbtn-hero" id="openAdd">+ เพิ่มตัวจับเวลา</button>
+    <div style="margin-top:14px;">
+      <button class="addbtn" id="openSettings" style="color:var(--muted);border-color:var(--border);">สร้าง/เข้าห้อง</button>
+    </div>
+    <p id="syncBadge" style="font-size:12px;color:var(--muted);margin:10px 0 0;"></p>
   </div>
 
   <div id="emptyState" class="empty" style="display:none;">
@@ -285,6 +289,33 @@
   <img id="lightboxImg" alt="รูปเต็ม" style="max-width:90vw;max-height:85vh;object-fit:contain;">
 </div>
 
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:420px;">
+    <h2>สร้างห้อง / เข้าห้อง</h2>
+    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin:0 0 14px;">
+      ตั้งชื่อห้องแล้วใส่ชื่อเดียวกันในทุกอุปกรณ์ของคุณ (เช่น คอมกับไอแพด) จะเห็นตัวจับเวลาชุดเดียวกันแบบเรียลไทม์ ต้องสร้าง Firebase Realtime Database ฟรีที่
+      <a href="https://console.firebase.google.com" target="_blank" style="color:var(--gold);">console.firebase.google.com</a>
+      แล้ววาง config ด้านล่างก่อน (ทำครั้งเดียว ใช้ config ชุดเดียวกันได้ทุกอุปกรณ์)
+    </p>
+    <div class="field">
+      <label>Firebase config (วางทั้งก้อนจาก Firebase console)</label>
+      <textarea id="firebaseConfigInput" placeholder='{"apiKey":"...","databaseURL":"https://...","projectId":"..."}' style="width:100%;min-height:80px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 10px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+    </div>
+    <div class="field">
+      <label>ชื่อห้อง (ตั้งเองอะไรก็ได้ ใส่ให้ตรงกันทุกอุปกรณ์ของคุณ)</label>
+      <input type="text" id="syncCodeInput" placeholder="เช่น preesh-room-2026">
+    </div>
+    <div class="err" id="syncErr">วาง Firebase config ให้เป็น JSON ที่ถูกต้อง และตั้งชื่อห้องด้วย</div>
+    <div class="modalbtns">
+      <button class="cancel" id="disconnectSyncBtn">ออกจากห้อง</button>
+      <button class="primary" id="syncSaveBtn">เข้าห้อง</button>
+    </div>
+    <button class="cancel" id="settingsCancelBtn" style="width:100%;margin-top:10px;">ปิด</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
 <script>
 const grid = document.getElementById('grid');
 const emptyState = document.getElementById('emptyState');
@@ -300,6 +331,53 @@ const openAdd = document.getElementById('openAdd');
 const cancelBtn = document.getElementById('cancelBtn');
 const saveBtn = document.getElementById('saveBtn');
 const modalTitle = document.getElementById('modalTitle');
+
+const settingsOverlay = document.getElementById('settingsOverlay');
+const openSettings = document.getElementById('openSettings');
+const settingsCancelBtn = document.getElementById('settingsCancelBtn');
+const syncSaveBtn = document.getElementById('syncSaveBtn');
+const disconnectSyncBtn = document.getElementById('disconnectSyncBtn');
+const firebaseConfigInput = document.getElementById('firebaseConfigInput');
+const syncCodeInput = document.getElementById('syncCodeInput');
+const syncErr = document.getElementById('syncErr');
+
+openSettings.addEventListener('click', ()=>{
+  const cfg = getFirebaseConfig();
+  firebaseConfigInput.value = cfg ? JSON.stringify(cfg) : '';
+  syncCodeInput.value = getSyncCode();
+  syncErr.style.display = 'none';
+  settingsOverlay.classList.add('show');
+});
+settingsCancelBtn.addEventListener('click', ()=>{ settingsOverlay.classList.remove('show'); });
+settingsOverlay.addEventListener('click', (e)=>{ if(e.target === settingsOverlay) settingsOverlay.classList.remove('show'); });
+
+syncSaveBtn.addEventListener('click', ()=>{
+  const configRaw = firebaseConfigInput.value.trim();
+  const code = syncCodeInput.value.trim();
+  try{
+    const parsed = JSON.parse(configRaw);
+    if(!parsed.databaseURL || !code) throw new Error('missing fields');
+    localStorage.setItem(FIREBASE_CONFIG_STORAGE, JSON.stringify(parsed));
+    localStorage.setItem(SYNC_CODE_STORAGE, code);
+    initSync();
+    syncErr.style.display = 'none';
+    settingsOverlay.classList.remove('show');
+  }catch(e){
+    syncErr.style.display = 'block';
+  }
+});
+
+disconnectSyncBtn.addEventListener('click', ()=>{
+  localStorage.removeItem(FIREBASE_CONFIG_STORAGE);
+  localStorage.removeItem(SYNC_CODE_STORAGE);
+  if(dbRef){ dbRef.off(); dbRef = null; }
+  syncMode = false;
+  firebaseConfigInput.value = '';
+  syncCodeInput.value = '';
+  loadTimers();
+  updateSyncBadge();
+  settingsOverlay.classList.remove('show');
+});
 let editingId = null;
 const nameInput = document.getElementById('nameInput');
 const minInput = document.getElementById('minInput');
@@ -313,6 +391,12 @@ const previewImg = document.getElementById('previewImg');
 let timers = [];
 let pendingImage = null;
 const STORAGE_KEY = 'game-timers-v1';
+const FIREBASE_CONFIG_STORAGE = 'firebase_config';
+const SYNC_CODE_STORAGE = 'sync_code';
+
+let firebaseApp = null;
+let dbRef = null;
+let syncMode = false;
 
 function loadTimers(){
   try{
@@ -335,18 +419,85 @@ function saveTimers(){
 
 function persistAdd(timer){
   timer.createdAt = timer.createdAt || Date.now();
-  timers.unshift(timer);
-  saveTimers();
-  render();
+  if(syncMode && dbRef){
+    dbRef.child(timer.id).set(timer);
+  } else {
+    timers.unshift(timer);
+    saveTimers();
+    render();
+  }
 }
 function persistUpdate(id, changes){
-  const t = timers.find(x=>x.id===id);
-  if(t){ Object.assign(t, changes); saveTimers(); render(); }
+  if(syncMode && dbRef){
+    dbRef.child(id).update(changes);
+  } else {
+    const t = timers.find(x=>x.id===id);
+    if(t){ Object.assign(t, changes); saveTimers(); render(); }
+  }
 }
 function persistRemove(id){
-  timers = timers.filter(x=>x.id!==id);
-  saveTimers();
-  render();
+  if(syncMode && dbRef){
+    dbRef.child(id).remove();
+  } else {
+    timers = timers.filter(x=>x.id!==id);
+    saveTimers();
+    render();
+  }
+}
+
+function getFirebaseConfig(){
+  try{
+    const raw = localStorage.getItem(FIREBASE_CONFIG_STORAGE);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function getSyncCode(){
+  try{ return localStorage.getItem(SYNC_CODE_STORAGE) || ''; }catch(e){ return ''; }
+}
+
+function updateSyncBadge(){
+  const badge = document.getElementById('syncBadge');
+  const code = getSyncCode();
+  if(syncMode && code){
+    badge.textContent = 'อยู่ในห้อง: ' + code + ' • เห็นข้อมูลเดียวกันทุกอุปกรณ์';
+    badge.style.color = 'var(--teal)';
+  } else {
+    badge.textContent = 'ยังไม่ได้เข้าห้อง (ข้อมูลอยู่แค่เครื่องนี้)';
+    badge.style.color = 'var(--muted)';
+  }
+}
+
+function initSync(){
+  const config = getFirebaseConfig();
+  const code = getSyncCode();
+  if(!config || !code){
+    syncMode = false;
+    loadTimers();
+    updateSyncBadge();
+    return;
+  }
+  try{
+    if(!firebaseApp){
+      firebaseApp = firebase.initializeApp(config);
+    }
+    if(dbRef){ dbRef.off(); }
+    dbRef = firebase.database().ref('sync/' + code + '/timers');
+    syncMode = true;
+    dbRef.on('value', (snapshot)=>{
+      const val = snapshot.val();
+      timers = val ? Object.values(val).sort((a,b)=> (b.createdAt||0)-(a.createdAt||0)) : [];
+      render();
+    }, (err)=>{
+      console.error(err);
+      alert('การเชื่อมต่อห้องขาดหาย ตรวจสอบ Firebase config และชื่อห้อง');
+    });
+    updateSyncBadge();
+  }catch(e){
+    console.error(e);
+    alert('เข้าห้องไม่สำเร็จ ตรวจสอบ Firebase config');
+    syncMode = false;
+    loadTimers();
+  }
 }
 
 function resizeImage(file){
@@ -595,7 +746,7 @@ function render(){
 }
 
 setInterval(render, 1000);
-loadTimers();
+initSync();
 </script>
 </body>
 </html>
