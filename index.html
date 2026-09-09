@@ -611,13 +611,25 @@ openAdd.addEventListener('click', ()=> openModal());
 cancelBtn.addEventListener('click', closeModal);
 overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
 
-[nameInput, minInput, secInput].forEach(el=>{
-  el.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter'){
-      e.preventDefault();
-      saveBtn.click();
-    }
-  });
+nameInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    minInput.focus();
+    minInput.select();
+  }
+});
+minInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    secInput.focus();
+    secInput.select();
+  }
+});
+secInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    saveBtn.click();
+  }
 });
 
 saveBtn.addEventListener('click', async ()=>{
